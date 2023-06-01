@@ -1,7 +1,7 @@
 clc
 clear all
 
-% Example_Pushover_RCPlane_Frame_01
+% Example_Pushover_RCPlane_Frame_05
 %----------------------------------------------------------------
 % PURPOSE 
 %    To compute the non-linear static Pushover analysis for a
@@ -10,26 +10,23 @@ clear all
 %
 %----------------------------------------------------------------
 
-% LAST MODIFIED: L.F.Veduzco    2023-05-31
+% LAST MODIFIED: L.F.Veduzco    2023-02-23
 %                Faculty of Engineering
 %                Autonomous University of Queretaro
 %----------------------------------------------------------------
 clc
 clear all
 
-nnodes=8;
-nbars=8;
+nnodes=6;
+nbars=5;
 
 %% Materials
 % f'c of each element
 fpc=[300;
     300;
     250;
-    300;
-    300;
     250;
-    250;
-    300];
+    250];
 
 % Elasticity modulus of each element in function of f'c
 E=zeros(nbars,1);
@@ -38,8 +35,11 @@ for i=1:nbars
 end
 
 %% Geometry/Topology
-% cross-section dimensions of each element (rectangular geometry)
-dimensions=[40 40;40 40;30 60;40 40;50 50;30 60;30 50;30 30];
+dimensions=[40 40;
+            30 60;
+            40 40;
+            30 60;
+            40 40];
         
 % cross-section area of each element
 A=zeros(nbars,1);
@@ -47,41 +47,53 @@ for i=1:nbars
     A(i)=dimensions(i,1)*dimensions(i,2);
 end
 
-% Cross-section inertia
 I=zeros(nbars,1);
 for i=1:nbars
     I(i)=1/12*dimensions(i,1)*dimensions(i,2)^3;
 end
 
-% coordinates of each node
-coordxy=[0 -100;0 400;0 800;600 800;600 400;600 -100;1200 400;1200 -100]; 
+% coordinates of each node for each bar
+coordxy=[0 0;
+         0 300;
+         500 0;
+         500 300;
+         800 0;
+         800 300]; 
 
-%% Topology (connectivity)
-ni=[1;2;3;4;5;2;5;7];
-nf=[2;3;4;5;6;5;7;8];
+% final and initial nodes for each element
+ni=[1;2;3;4;5];
+nf=[2;4;4;6;6];
 
-%% Prescribed boudnary conditions [dof, displacement]
-bc=[1 0;2 0;3 0;16 0;17 0;18 0;22 0;23 0;24 0];
+l=sqrt((coordxy(nf,1)-coordxy(ni,1)).^2+...
+      (coordxy(nf,2)-coordxy(ni,2)).^2); % bar-length vector
+
+% prescribed boudnary conditions [dof, displacement]
+bc=[1 0;
+    2 0;
+    3 0;
+    7 0;
+    8 0;
+    9 0;
+    13 0;
+    14 0;
+    15 0];
 
 supports=[1 "Fixed" "Fixed";
            2 "Fixed" "Fixed";
            3 "Fixed" "Fixed";
            4 "Fixed" "Fixed";
-           5 "Fixed" "Fixed";
-           6 "Fixed" "Fixed";
-           7 "Fixed" "Fixed";
-           8 "Fixed" "Fixed"];
-       
-%% Additional data (optional)
+           5 "Fixed" "Fixed"];
+   
 type_elem=[1 "Col";
-           2 "Col";
-           3 "Beam";
-           4 "Col";
-           5 "Col";
-           6 "Beam";
-           7 "Beam";
-           8 "Col"];
+           2 "Beam";
+           3 "Col";
+           4 "Beam";
+           5 "Col"];
        
+%% Loads       
+beams_LL=[1 100; % Uniformly distributed loads over the beams
+          2 100];
+
 elemcols=[];
 elembeams=[];
 beams=0;
@@ -96,53 +108,45 @@ for j=1:nbars
     end
 end
 
-%% Loads       
-beams_LL=[1 100; % Uniformly distributed loads over the beams
-          2 100;
-          3 100];
-
-% Assignation of distributed loads on beams
+% Uniformly distributed loads considering self weight of the elements
 qbary=zeros(nbars,2);
 for i=1:beams
-    qbary(elembeams(i),2)=beams_LL(i,2);
+    qbary(elembeams(i),2)=1.1*(beams_LL(i,2));
 end
    
-% Lateral equivalent seismic forces from a modal analysis. The number of
-% forces must be equal to the number of floors
-seismicForces=[1500; % lower floor
-                2000]; % upper floor
-            
-% Degrees of freedom over which each seismic force is applied (one for
-% each seismic force)
-dofSeismicForces=[4 7];
-
-%% Plastic moments of each element's ends
+% Plastic moments of each element's ends
 Mp=[7680000 7680000;
     6490000 6490000;
     8363000 8976940;
     5490000 5490000;
-    8680000 8680000;
-    9363000 9976940;
-    7363000 7976940;
-    5490000 5490000]; %Kg-cm
+    8680000 8680000]; %Kg-cm
+
+% Lateral equivalent seismic forces from a modal analysis. The number of
+% forces must be equal to the number of floors
+seismicForces=[1500];
+            
+% Degrees of freedom over which each seismic force is applied (one for
+% each seismic force)
+dofSeismicForces=[4];
 
 % Height of each floor
-hfloor=[400; 400];  
-nfloors=length(hfloor);
+hfloor=[300];  
 
-%% PUSHOVER IN POSITIVE DIRECTION OF FORCES
+%%% PUSHOVER IN POSITIVE DIRECTION OF FORCES
 
 [lambdaRight,pdriftDIRight,driftDIRight,defBasedDIRight,maxDispRight,...
  barPlasNodeRight]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
 supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
 
-%% PUSHOVER IN NEGATIVE DIRECTION OF FORCES
+%%% PUSHOVER IN NEGATIVE DIRECTION OF FORCES
 
 seismicForces=-seismicForces;
     
 [lambdaLeft,pdriftDILeft,driftDILeft,defBasedDILeft,maxDispLeft,...
  barPlasNodeLeft]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
 supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
+
+nfloors=length(hfloor);
 
 %% Final results
 SafetyFac=min([max(lambdaRight), max(lambdaLeft)])

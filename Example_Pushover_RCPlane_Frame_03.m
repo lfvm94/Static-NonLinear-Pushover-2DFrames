@@ -43,9 +43,8 @@ fpc=[300;
      300];
 
 % Elasticity modulus of each element in function of f'c
-e=zeros(nbars,1);
 for i=1:nbars
-    e(i)=14000*(fpc(i))^0.5;
+    E(i)=14000*(fpc(i))^0.5;
 end
 
 %% Geometry/Topology
@@ -70,15 +69,12 @@ dimensions=[35 70;
             45 60;
             35 60];
 
-
-a=zeros(nbars,1); % cross-section area of each element
-inertia=zeros(nbars,1);
 for i=1:nbars
-    a(i)=dimensions(i,1)*dimensions(i,2);
-    inertia(i)=1/12*dimensions(i,1)*dimensions(i,2)^3;
+    A(i)=dimensions(i,1)*dimensions(i,2);
+    I(i)=1/12*dimensions(i,1)*dimensions(i,2)^3;
 end
 
-%coordinates of each node for each bar
+% coordinates of each node for each bar
 coordxy=[0 -150;
          0 400;
          0 800;
@@ -94,20 +90,16 @@ coordxy=[0 -150;
          1200 800;
          1200 1200;
          1200 1600]; 
-     
-                  
+        
 %%%---- Initial-final node of each bar -----%%%
 
 ni=[1;2;3;4;5;4;3;2;10;9;8;7;6; 7; 8; 9; 11;12;13;14];
 nf=[2;3;4;5;6;7;8;9;9; 8;7;6;15;14;13;12;12;13;14;15];
 
-l=sqrt((coordxy(nf,1)-coordxy(ni,1)).^2+...
+L=sqrt((coordxy(nf,1)-coordxy(ni,1)).^2+...
       (coordxy(nf,2)-coordxy(ni,2)).^2); % bar-length vector
 
-c=(coordxy(nf,1)-coordxy(ni,1))./l;       % cos direction vector
-s=(coordxy(nf,2)-coordxy(ni,2))./l;       % sen direction vector
-
-% prescribed boudnary conditions
+% prescribed boudnary conditions [DOF, displacement]
 bc=[1 0;
     2 0;
     3 0;
@@ -117,22 +109,6 @@ bc=[1 0;
     31 0;
     32 0;
     33 0];
-
-% habilited nodes
-[ndof,edof]=nonRestrcDof(nnodes,bc);
-
-% Topology matrix 
-Edof=zeros(nbars,7);
-for i=1:nbars
-    Edof(i,1)=i;
-    Edof(i,2)=ni(i)*3-2;
-    Edof(i,3)=ni(i)*3-1;
-    Edof(i,4)=ni(i)*3;
-    
-    Edof(i,5)=nf(i)*3-2;
-    Edof(i,6)=nf(i)*3-1;
-    Edof(i,7)=nf(i)*3;
-end
 
 %% Loads  
 type_elem=[1 "Col";
@@ -200,31 +176,12 @@ supports=[1 "Empotrado" "Empotrado";
        18 "Empotrado" "Empotrado";
        19 "Empotrado" "Empotrado";
        20 "Empotrado" "Empotrado"];
-         
-% To consider the self-weight as uniformly distributed load on the 
-% elements
-unit_weight_elem=zeros(nbars,2);
-for i=1:nbars
-    unit_weight_elem(i,2)=0.0024; % kg/cm3
-end
 
 % Uniformly distributed loads considering self weight of the elements
 qbary=zeros(nbars,2);
 for i=1:beams
-    qbary(elem_beams(i),2)=1.1*a(elem_beams(i))*unit_weight_elem(elem_beams(i),2)+1.1*(beams_LL(i,2));
+    qbary(elem_beams(i),2)=1.1*(beams_LL(i,2));
     
-end
-
-% Distribution of loads to the end of each element (Do not delete)
-rxbar=zeros(nbars,3);
-rybar=zeros(nbars,3);
-mbar=zeros(nbars,3);
-for i=1:nbars
-    rybar(i,2)=qbary(i,2)*l(i)*0.5;
-    rybar(i,3)=qbary(i,2)*l(i)*0.5;
-    
-    mbar(i,2)=qbary(i,2)*l(i)^2/12;
-    mbar(i,3)=-qbary(i,2)*l(i)^2/12;
 end
     
 % Plastic moments of each element's ends
@@ -251,44 +208,38 @@ Mp=[9680000 9680000;
 
 % Lateral equivalent seismic forces from a modal analysis. The number of
 % forces must be equal to the number of floors
-seismic_forces=[1500; % upper floor
+seismicForces=[1500; % lower floor
                 2000;
                 2500;
-                3000]; % lower floor
+                3000]; % upper floor
 
 % Degrees of freedom over which each seismic force is applied (one for
 % each seismic force)
-dof_seismic_forces=[4 7 10 13];
-
-% Degrees of freedom corresponding to those over which the seismic forces
-% are applied, in the same order
-dof_disp=[1 4 7 10];
+dofSeismicForces=[4 7 10 13];
 
 % Height of each floor
 hfloor=[400; 400; 400; 400];
 
-%%% IN POSITIVE DIRECTION OF FORCES__________
-%____________________________________________________________________
+%%% PUSHOVER IN POSITIVE DIRECTION OF FORCES
 
-[lambda_der,pdrift_DI_der,drift_DI_der,def_based_di_der,...
-max_disp_der]=ElastoPlasticPushoverPlaneFrames(qbary,a,Mp,nbars,...
-nnodes,e,inertia,coordxy,ni,nf,l,c,s,Edof,supports,edof,ndof,rxbar,...
-rybar,mbar,seismic_forces,hfloor,dof_seismic_forces,dof_disp);
+[lambdaRight,pdriftDIRight,driftDIRight,defBasedDIRight,maxDispRight,...
+ barPlasNodeRight]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
+supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
 
-%%% IN NEGATIVE DIRECTION OF FORCES__________
-%____________________________________________________________________
+%%% PUSHOVER IN NEGATIVE DIRECTION OF FORCES
 
-seismic_forces=-seismic_forces;
+seismicForces=-seismicForces;
     
-[lambda_izq,pdrift_DI_izq,drift_DI_izq,def_based_di_izq,...
-max_disp_izq]=ElastoPlasticPushoverPlaneFrames(qbary,a,Mp,nbars,...
-nnodes,e,inertia,coordxy,ni,nf,l,c,s,Edof,supports,edof,ndof,rxbar,...
-rybar,mbar,seismic_forces,hfloor,dof_seismic_forces,dof_disp);
+[lambdaLeft,pdriftDILeft,driftDILeft,defBasedDILeft,maxDispLeft,...
+ barPlasNodeLeft]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
+supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
 
 nfloors=length(hfloor);
-FS=min([lambda_der, lambda_izq])
-pdriftDI=min([sum(pdrift_DI_der)/nfloors,sum(pdrift_DI_izq)/nfloors])
-driftDI=min([sum(drift_DI_der)/nfloors,sum(drift_DI_izq)/nfloors])
-dbDI=min([sum(def_based_di_der)/nfloors,sum(def_based_di_izq)/nfloors])
 
-Max_Displacement=max(max(max_disp_izq),max(max_disp_der))
+%% Final results
+SafetyFac=min([max(lambdaRight), max(lambdaLeft)])
+pdriftDI=min([sum(pdriftDIRight)/nfloors,sum(pdriftDILeft)/nfloors])
+driftDI=min([sum(driftDIRight)/nfloors,sum(driftDILeft)/nfloors])
+dbDI=min([sum(defBasedDIRight)/nfloors,sum(defBasedDILeft)/nfloors])
+
+Max_Displacement=max(max(maxDispLeft),max(maxDispRight))
