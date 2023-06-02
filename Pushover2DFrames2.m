@@ -95,17 +95,17 @@ mbar=zeros(nbars,2); % to save the plastic moments at each articulation
 nfloors=length(Hfloor); % will be used to compute the relative floor
                          % displacements and damage indices of each floor
 
-displacement_history_floor_left=[];
+dispHistFloorLeft=[];
 force_floor_left=[];
 
-displacement_history_floor_right=[];
+dispHistFloorRight=[];
 force_floor_right=[];
 
 zero_disp=zeros(nfloors,1);
-displacement_history_floor_left=[displacement_history_floor_left,zero_disp];
+dispHistFloorLeft=[dispHistFloorLeft,zero_disp];
 force_floor_left=[force_floor_left,zero_disp];
 
-displacement_history_floor_right=[displacement_history_floor_right,zero_disp];
+dispHistFloorRight=[dispHistFloorRight,zero_disp];
 force_floor_right=[force_floor_right,zero_disp];
 
 plast_bars=zeros(2,nbars);
@@ -133,7 +133,7 @@ while looping==0
          
         eq=[0 -qbary(i,2)];
 
-        [Ke_barra,fe_barra]=beam2e(ex,ey,ep,eq); % This is a CALFEM
+        [Kebar,febar]=beam2e(ex,ey,ep,eq); % This is a CALFEM
                                                  % function
                                                  % Download at: 
                                                  % https://www.byggmek.lth.se/english/calfem/
@@ -141,17 +141,17 @@ while looping==0
         if support(i,2)=="Fixed" && support(i,3)=="Art"
             Mpl=mbar(i,2);
             eq=[0 -qbary(i,2) Mpl];
-            [Ke_barra,fe_barra]=beamArt2e(ex,ey,ep,eq,1);
+            [Kebar,febar]=beamArt2e(ex,ey,ep,eq,1);
              
          elseif support(i,2)=="Art" && support(i,3)=="Fixed"
 
              Mpl=mbar(i,1);
              eq=[0 -qbary(i,2) Mpl];
-             [Ke_barra,fe_barra]=beamArt2e(ex,ey,ep,eq,2);
+             [Kebar,febar]=beamArt2e(ex,ey,ep,eq,2);
              
          end
-         elemental_matrices((i-1)*6+1:6*i,:)=Ke_barra; %% guardando Ke_barra
-         [Kglobal,fglobal]=assem(Edof(i,:),Kglobal,Ke_barra,fglobal,fe_barra);
+         elemental_matrices((i-1)*6+1:6*i,:)=Kebar; % storing Ke_barra
+         [Kglobal,fglobal]=assem(Edof(i,:),Kglobal,Kebar,fglobal,febar);
 
      end     
 
@@ -369,7 +369,8 @@ while looping==0
                 else
                     % Relative displacement
                     disp_iter=[disp_iter;
-                        abs(Uglobal(dofForces(i)))-abs(Uglobal(dofForces(i-1)))];
+                               abs(Uglobal(dofForces(i)))-...
+                               abs(Uglobal(dofForces(i-1)))];
                     
                 end
                 
@@ -378,7 +379,7 @@ while looping==0
                      
             end
             
-            displacement_history_floor_left=[displacement_history_floor_left,disp_iter];                
+            dispHistFloorLeft=[dispHistFloorLeft,disp_iter];                
             force_floor_left=[force_floor_left,force_iter];
             
         else
@@ -390,14 +391,15 @@ while looping==0
                         abs(Uglobal(dofForces(i)))];
                 else
                     disp_iter=[disp_iter;
-                        abs(Uglobal(dofForces(i)))-abs(Uglobal(dofForces(i-1)))];
+                        abs(Uglobal(dofForces(i)))-...
+                        abs(Uglobal(dofForces(i-1)))];
                         
                 end
                 force_iter=[force_iter;
                             abs(seismicforces(i))*incLoad]; 
                 
             end
-            displacement_history_floor_right=[displacement_history_floor_right,disp_iter];                
+            dispHistFloorRight=[dispHistFloorRight,disp_iter];                
             force_floor_right=[force_floor_right,force_iter];
             
         end
@@ -424,33 +426,34 @@ defBasedDI=zeros(1,nfloors);
 driftDI=zeros(1,nfloors);
 
 if sum(seismicforces)<0
-    nd=length(displacement_history_floor_left(1,:));
+    nd=length(dispHistFloorLeft(1,:));
     for i=1:nfloors
-        k_direction(i)=force_floor_left(i,2)/displacement_history_floor_left(i,2);
+        k_direction(i)=force_floor_left(i,2)/dispHistFloorLeft(i,2);
         
         % Plastic drift damage index
         
-        pdriftDI(i)=(max(displacement_history_floor_left(i,:))-displacement_history_floor_left(i,2))/...
+        pdriftDI(i)=(max(dispHistFloorLeft(i,:))-dispHistFloorLeft(i,2))/...
         (Hfloor(i))*100;
     
         % Interstory drift damage index
 
-        driftDI(i)=max(displacement_history_floor_left(i,:))/(Hfloor(i))*100;
+        driftDI(i)=max(dispHistFloorLeft(i,:))/(Hfloor(i))*100;
         
-        maxDisplacement(i)=max(displacement_history_floor_left(i,:));
+        maxDisplacement(i)=max(dispHistFloorLeft(i,:));
         
-        delta_u=displacement_history_floor_left(i,nd);
-        defBasedDI(i)=(maxDisplacement(i)-displacement_history_floor_left(i,2))/(delta_u-displacement_history_floor_left(i,2));
+        delta_u=dispHistFloorLeft(i,nd);
+        defBasedDI(i)=(maxDisplacement(i)-dispHistFloorLeft(i,2))/...
+                      (delta_u-dispHistFloorLeft(i,2));
         
         floorText(i,:)=strcat('Floor ',num2str(i));
         figure(1)
         if i==1
-            plot(displacement_history_floor_left(i,:),...
+            plot(dispHistFloorLeft(i,:),...
                 force_floor_left(i,:),'b -','LineWidth',1.8)
             legend(floorText(i,:))
             hold on
         else
-            plot(displacement_history_floor_left(i,:),...
+            plot(dispHistFloorLeft(i,:),...
                 force_floor_left(i,:),'-',...
                 'LineWidth',1.8,'DisplayName',floorText(i,:))
             hold on
@@ -475,33 +478,34 @@ if sum(seismicforces)<0
     eldisp2(Ex,Ey,Ed,plotpar,50);
     
 else
-    nd=length(displacement_history_floor_right(1,:));
+    nd=length(dispHistFloorRight(1,:));
     for i=1:nfloors
         
-        k_direction(i)=force_floor_right(i,2)/displacement_history_floor_right(i,2);
+        k_direction(i)=force_floor_right(i,2)/dispHistFloorRight(i,2);
         
         % Plastic drift damage index
-        pdriftDI(i)=(max(displacement_history_floor_right(i,:))-displacement_history_floor_right(i,2))/...
+        pdriftDI(i)=(max(dispHistFloorRight(i,:))-dispHistFloorRight(i,2))/...
             (Hfloor(i))*100;
         
         % Interstory drift damage index
-        driftDI(i)=max(displacement_history_floor_right(i,:))/(Hfloor(i))*100;
+        driftDI(i)=max(dispHistFloorRight(i,:))/(Hfloor(i))*100;
         
-        maxDisplacement(i)=max(displacement_history_floor_right(i,:));
+        maxDisplacement(i)=max(dispHistFloorRight(i,:));
     
-        delta_u=displacement_history_floor_right(i,nd);
+        delta_u=dispHistFloorRight(i,nd);
         
-        defBasedDI(i)=(maxDisplacement(i)-displacement_history_floor_right(i,2))/(delta_u-displacement_history_floor_right(i,2));
+        defBasedDI(i)=(maxDisplacement(i)-dispHistFloorRight(i,2))/...
+                       (delta_u-dispHistFloorRight(i,2));
         
         floorText(i,:)=strcat('Floor ',num2str(i));
         figure(3)
         if i==1
-            plot(displacement_history_floor_right(i,:),...
+            plot(dispHistFloorRight(i,:),...
                 force_floor_right(i,:),'k -','LineWidth',1.8)
             legend(floorText(i,:))
             hold on
         else
-            plot(displacement_history_floor_right(i,:),...
+            plot(dispHistFloorRight(i,:),...
                 force_floor_right(i,:),'-','LineWidth',1.8,...
                 'DisplayName',floorText(i,:))
             hold on
