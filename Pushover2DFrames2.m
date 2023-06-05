@@ -85,9 +85,8 @@ for i=1:nbars
     Edof(i,5)=nf(i)*3-2;
     Edof(i,6)=nf(i)*3-1;
     Edof(i,7)=nf(i)*3;
-    
 end
-
+    
 [ndof,edof]=nonRestrcDof(nnodes,bc);
 
 mbar=zeros(nbars,2); % to save the plastic moments at each articulation
@@ -117,42 +116,54 @@ incLoad=1.0;
 iteration=0;
 while looping==0
     Kglobal=zeros(3*nnodes);
-    fglobal=zeros(3*nnodes,1);
-
-    for i=1:nfloors
-        fglobal(dofForces(i))=seismicforces(i)*incLoad;
+    if iteration==0
+        fglobal=zeros(3*nnodes,1);
+        fglobal(dofForces)=seismicforces*incLoad;
     end
+    elmMat=zeros(6*nbars,6);
 
-    elemental_matrices=zeros(6*nbars,6);
-
-    for i=1:nbars      
-        
+    Ex=zeros(nbars,2);
+    Ey=zeros(nbars,2);
+    
+    for i=1:nbars 
         ex=[coordxy(ni(i),1) coordxy(nf(i),1)];
         ey=[coordxy(ni(i),2) coordxy(nf(i),2)];
+        
+        Ex(i,:)=ex;
+        Ey(i,:)=ey;
+        
         ep=[E(i) A(i) I(i)];
          
-        eq=[0 -qbary(i,2)];
+        eq=[0 qbary(i,2)];
 
-        [Kebar,febar]=beam2e(ex,ey,ep,eq); % This is a CALFEM
-                                                 % function
-                                                 % Download at: 
-                                                 % https://www.byggmek.lth.se/english/calfem/
-
+        [Kebar,febar]=beam2e(ex,ey,ep,eq); % This is a CALFEM function
+                                           % Download at: 
+                                           % https://www.byggmek.lth.se/english/calfem/
+        
         if support(i,2)=="Fixed" && support(i,3)=="Art"
             Mpl=mbar(i,2);
-            eq=[0 -qbary(i,2) Mpl];
+            eq=[0 qbary(i,2) Mpl];
             [Kebar,febar]=beamArt2e(ex,ey,ep,eq,1);
              
          elseif support(i,2)=="Art" && support(i,3)=="Fixed"
 
              Mpl=mbar(i,1);
-             eq=[0 -qbary(i,2) Mpl];
+             eq=[0 qbary(i,2) Mpl];
              [Kebar,febar]=beamArt2e(ex,ey,ep,eq,2);
              
-         end
-         elemental_matrices((i-1)*6+1:6*i,:)=Kebar; % storing Ke_barra
-         [Kglobal,fglobal]=assem(Edof(i,:),Kglobal,Kebar,fglobal,febar);
+        elseif support(i,2)=="Art" && support(i,3)=="Art"
 
+             Mp1=mbar(i,1);
+             Mp2=mbar(i,2);
+             eq=[0 qbary(i,2) [Mp1,Mp2]];
+             [Kebar,febar]=beamArt2e(ex,ey,ep,eq,3);
+        end
+        fbe(:,i)=febar; % storing elemental forces for further use
+        
+        elmMat((i-1)*6+1:6*i,:)=Kebar; % storing Ke of bars for further use
+        
+        % Assembling global stiffness matrix
+        [Kglobal,fglobal]=assem(Edof(i,:),Kglobal,Kebar,fglobal,febar);
      end     
 
     globalKreduced=Kglobal(edof,edof);
@@ -161,40 +172,33 @@ while looping==0
     else
         det_Kred_post=det(globalKreduced);
     end
-    
+    % Solving the system of equations
     [Uglobal,Reactions]=solveq(Kglobal,fglobal,bc);
-    
-    ex=coordxy(:,1);
-    ey=coordxy(:,2);
-
-    Ex=zeros(nbars,2);
-    Ey=zeros(nbars,2);
-
-    for j=1:nbars
-        Ex(j,1)=ex(Edof(j,4)/3);
-        Ex(j,2)=ex(Edof(j,7)/3);
-
-        Ey(j,1)=ey(Edof(j,4)/3);
-        Ey(j,2)=ey(Edof(j,7)/3);
-
-    end 
-
-    reac_bars=zeros(6,nbars);
-    
+   
     % --- computation of mechanic elements at the ends of bars --- %
+    Ed=extract(Edof,Uglobal);
     for i=1:nbars
+        
+        es_bar=beam2s(Ex(i,:),Ey(i,:),[E(i) A(i) I(i)],Ed(i,:),...
+            [0 qbary(i,2)],2);
+        
         ue=Uglobal(Edof(i,2:7));
-        ke=elemental_matrices((i-1)*6+1:6*i,:);
+        ke=elmMat((i-1)*6+1:6*i,:);
 
-        fe=-ke*ue;
-
+        fe=-(ke*ue-fbe(:,i));
+        
         reac_bars(:,i)=fe;
     end
 
     iteration=iteration+1;
-    current_plas=0;
+    current_plas=0; % to register if there is a plastification in the 
+                    % current run
 
-    plastified_bars=zeros(nbars,1);
+    plastified_bars=zeros(nbars,1); % to register which bars are plastified
+                                    % in the current run (if any)
+                                    
+    fglobal=zeros(3*nnodes,1); % create new force vector for the next run
+                               % (in case there is one next run)
     for i=1:nbars
 
         % Detect if any end of this bar (i) has been plastified
@@ -214,61 +218,28 @@ while looping==0
 
                     plast_bars(2,i)=1;
 
-                    I(i)=1e-10;
-
-                    % Change condition Fixed-Art to Art-Art
+                    % Change condition Art-Fixed to Art-Art
                     support(i,3)="Art";
 
+                    % Equivalent plastic moments
                     mplas=reac_bars(6,i);
-                    mbar(i,2)=mbar(i,2)+mplas;
-
-                    % These are substituiting forces for each plastified bar 
-                    
-                    fglobal(ni(i)*3-1)=fglobal(ni(i)*3-1)+...
-                                            reac_bars(2,i);
-                    fglobal(nf(i)*3-1)=fglobal(nf(i)*3-1)+...
-                                            reac_bars(5,i);
-
-                    fglobal(ni(i)*3)=fglobal(ni(i)*3)+...
-                                        reac_bars(3,i);
-                    fglobal(nf(i)*3)=fglobal(nf(i)*3)+...
-                                        reac_bars(6,i);
-                    
+                    mbar(i,2)=mplas;
+    
                     plastified_bars(i,1)=2;
-                    
-                    historyIncLoad=[historyIncLoad,incLoad];
-
-                    iter_collection=[iter_collection,iteration];
                 
                 elseif plast_bars(1,i)==0 && plast_bars(2,i)==1
                     % The bar is currently Fixed-Art and will be Art-Art
                     current_plas=1;
                     plast_bars(1,i)=1;
-
-                    I(i)=1e-10;
-
+                    
                     % Change condition Fixed-Art to Art-Art
                     support(i,2)="Art";
 
+                    % Equivalent plastic moments
                     mplas=reac_bars(3,i);
-                    mbar(i,1)=mbar(i,1)+mplas;
-
-                    % These are substituiting forces for each plastified bar 
+                    mbar(i,1)=mplas;
                     
-                    fglobal(ni(i)*3-1)=fglobal(ni(i)*3-1)+...
-                                            reac_bars(2,i);
-                    fglobal(nf(i)*3-1)=fglobal(nf(i)*3-1)+...
-                                            reac_bars(5,i);
-
-                    fglobal(ni(i)*3)=fglobal(ni(i)*3)+...
-                                        reac_bars(3,i);
-                    fglobal(nf(i)*3)=fglobal(nf(i)*3)+...
-                                        reac_bars(6,i);
                     plastified_bars(i,1)=1;
-                                
-                    historyIncLoad=[historyIncLoad,incLoad];
-
-                    iter_collection=[iter_collection,iteration];
                 end
             end
         elseif bar_plas_check==0
@@ -283,26 +254,10 @@ while looping==0
                 % change condition to Art
                 support(i,2)="Art";
 
-                % Equivalent forces
-                mbar(i,1)=mbar(i,1)+mplas;
-                mbar(i,2)=mbar(i,2)+0.5*mplas;
-
-                % These are substituiting forces for each plastified bar 
+                % Equivalent plastic moments
+                mbar(i,1)=mplas;
                 
-                fglobal(ni(i)*3-1)=fglobal(ni(i)*3-1)+...
-                                        reac_bars(2,i);
-                fglobal(nf(i)*3-1)=fglobal(nf(i)*3-1)+...
-                                        reac_bars(5,i);
-
-                fglobal(ni(i)*3)=fglobal(ni(i)*3)+...
-                                    reac_bars(3,i);
-                fglobal(nf(i)*3)=fglobal(nf(i)*3)+...
-                                    reac_bars(6,i);
                 plastified_bars(i,1)=1;
-                
-                historyIncLoad=[historyIncLoad,incLoad];
-
-                iter_collection=[iter_collection,iteration];
 
             elseif abs(reac_bars(6,i))>=Mp(i,2) && ...
                     abs(reac_bars(3,i))<Mp(i,1)
@@ -313,35 +268,43 @@ while looping==0
                 % change condition to Fixed-Art
                 support(i,3)="Art";
 
-                % Equivalent forces
+                % Equivalent plastic moments
+                mbar(i,2)=mplas;
                 
-                mbar(i,1)=mbar(i,1)+0.5*mplas;
-                mbar(i,2)=mbar(i,2)+mplas;
-
-                % These are substituiting forces for each plastified bar 
-                
-                fglobal(ni(i)*3-1)=fglobal(ni(i)*3-1)+...
-                                        reac_bars(2,i);
-                fglobal(nf(i)*3-1)=fglobal(nf(i)*3-1)+...
-                                        reac_bars(5,i);
-
-                fglobal(ni(i)*3)=fglobal(ni(i)*3)+...
-                                    reac_bars(3,i);
-                fglobal(nf(i)*3)=fglobal(nf(i)*3)+...
-                                    reac_bars(6,i);
                 plastified_bars(i,1)=2;
+                
+            elseif abs(reac_bars(6,i))>=Mp(i,2) && ...
+                    abs(reac_bars(3,i))>=Mp(i,1)
+                
+                current_plas=1;
+                plast_bars(2,i)=1; 
+                plast_bars(1,i)=1;
+                mplas1=reac_bars(3,i); % storing plastic moments
+                mplas2=reac_bars(6,i); % for the next iteration
+                
+                % change condition to Art-Art
+                support(i,2)="Art";
+                support(i,3)="Art";
 
-                historyIncLoad=[historyIncLoad,incLoad];
-
-                iter_collection=[iter_collection,iteration];
+                % Equivalent plastic moments
+                mbar(i,1)=mplas1;
+                mbar(i,2)=mplas2;
+                                
+                % To have register that both element's ends were
+                % plastified in flexure
+                plastified_bars(i,1)=3;
 
             end
         end
     end
-                
     if current_plas==0
+        % Updating loads for the next iteration (in case there is one)
         incLoad=incLoad+dload;
+        fglobal(dofForces)=seismicforces*incLoad;
     else
+        historyIncLoad=[historyIncLoad,incLoad];
+        iter_collection=[iter_collection,iteration];
+                
         barPlasNode=[barPlasNode,plastified_bars];
         if sum(seismicforces)<0
             disp_iter=[];
@@ -387,10 +350,12 @@ while looping==0
             force_floor_right=[force_floor_right,force_iter];
             
         end
+        % Updating loads for the next iteration (in case there is one)
         incLoad=incLoad+dload;
+        fglobal(dofForces)=seismicforces*incLoad;
     end
     
-    if iteration>1
+    if iteration>1 % to verify is a next run is required
         if det_Kred_post/det_Kred<kdam
             break;
 

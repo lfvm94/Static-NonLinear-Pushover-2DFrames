@@ -15,9 +15,10 @@ function [Ke,fe]=beamArt2e(ex,ey,ep,eq,art);
 %
 %            eq = [qx qy Mp]    distributed loads, local directions
 % 
-%            art = 1 or 2       articulation condition at the ends
+%            art = 1, 2, 3      articulation condition at the ends
 %                                  1. Fixed - Articulated
 %                                  2. Articulated - Fixed
+%                                  3. Articulated - Articulated
 %
 %    OUTPUT: Ke : element stiffness matrix (6 x 6)
 %
@@ -35,19 +36,7 @@ E=ep(1);  A=ep(2);  I=ep(3);
 
 qx=0; qy=0; Mp=0; if nargin>3; qx=eq(1); qy=eq(2); Mp=eq(3); end
 
-if art==2
-
-    Kle=[E*A/L   0            0      -E*A/L      0          0 ;
-         0   3*E*I/L^3        0      0   -3*E*I/L^3  3*E*I/L^2;
-         0       0            0      0   	     0          0;
-       -E*A/L    0            0       E*A/L      0          0 ;
-         0   -3*E*I/L^3 	  0      0   3*E*I/L^3  -3*E*I/L^2;
-         0   3*E*I/L^2    	  0      0   -3*E*I/L^2   3*E*I/L];
-
-    fle=L*[qx/2 qy/2 qy*L/12 qx/2 qy/2 -qy*L/12]'+...
-    	Mp*[0 3/(2*L) 1 0 -3/(2*L) 1/2]';
-    
-elseif art==1
+if art==1
     Kle=[E*A/L   0            0      -E*A/L      0          0 ;
          0   3*E*I/L^3   3*E*I/L^2   0   -3*E*I/L^3         0 ;
          0   3*E*I/L^2    3*E*I/L    0   -3*E*I/L^2         0 ;
@@ -55,8 +44,33 @@ elseif art==1
          0   -3*E*I/L^3 -3*E*I/L^2   0   3*E*I/L^3          0 ;
          0       0            0      0           0          0];
 
-    fle=L*[qx/2 qy/2 qy*L/12 qx/2 qy/2 -qy*L/12]'+...
+    fle=L*[qx/2 5/8*qy qy*L/8 qx/2 3/8*qy 0]'+...
     	Mp*[0 3/(2*L) 1/2 0 -3/(2*L) 1]';
+    
+elseif art==2
+
+    Kle=[E*A/L   0            0   -E*A/L         0          0 ;
+         0   3*E*I/L^3        0      0   -3*E*I/L^3  3*E*I/L^2;
+         0       0            0      0   	     0          0 ;
+       -E*A/L    0            0    E*A/L         0          0 ;
+         0   -3*E*I/L^3 	  0      0   3*E*I/L^3  -3*E*I/L^2;
+         0   3*E*I/L^2    	  0      0   -3*E*I/L^2   3*E*I/L];
+
+    fle=L*[qx/2 3/8*qy 0 qx/2 5/8*qy -qy*L/8]'+...
+    	Mp*[0 3/(2*L) 1 0 -3/(2*L) 1/2]';
+    
+elseif art==3
+    Mp1=eq(3); Mp2=eq(4);
+    
+    Kle=[E*A/L   0            0      -E*A/L      0          0 ;
+         0       0            0      0           0          0 ;
+         0       0            0      0   	     0          0 ;
+       -E*A/L    0            0      E*A/L       0          0 ;
+         0       0 	          0      0           0          0 ;
+         0       0    	      0      0           0          0];
+    
+    fle=L*[qx/2 qy/2 0 qx/2 qy/2 0]'+...
+    	[0 (Mp1+Mp2)/L Mp1 0 -(Mp1+Mp2)/L Mp2]';
 end
 
 G=[n(1) n(2)  0    0    0   0;

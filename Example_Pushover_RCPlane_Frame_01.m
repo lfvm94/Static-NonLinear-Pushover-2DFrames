@@ -97,9 +97,9 @@ for j=1:nbars
 end
 
 %% Loads       
-beams_LL=[1 100; % Uniformly distributed loads over the beams
-          2 100;
-          3 100];
+beams_LL=[1 -50; % Uniformly distributed loads over the beams
+          2 -50;
+          3 -50];
 
 % Assignation of distributed loads on beams
 qbary=zeros(nbars,2);
@@ -109,22 +109,22 @@ end
    
 % Lateral equivalent seismic forces from a modal analysis. The number of
 % forces must be equal to the number of floors
-seismicForces=[1500; % lower floor
-                2000]; % upper floor
+seismicForces=[1000; % lower floor
+                1500]; % upper floor
             
 % Degrees of freedom over which each seismic force is applied (one for
 % each seismic force)
 dofSeismicForces=[4 7];
 
 %% Plastic moments of each element's ends
-Mp=[7680000 7680000;
-    6490000 6490000;
-    8363000 8976940;
-    5490000 5490000;
-    8680000 8680000;
-    9363000 9976940;
-    7363000 7976940;
-    5490000 5490000]; %Kg-cm
+Mp=[9680000 9680000;
+    8490000 8490000;
+    3363000 3276940;
+    9490000 9490000;
+    9680000 9680000;
+    3363000 3976940;
+    3363000 3976940;
+    8490000 8490000]; %Kg-cm
 
 % Height of each floor
 hfloor=[400; 400];  
@@ -134,7 +134,7 @@ nfloors=length(hfloor);
 
 [lambdaRight,pdriftDIRight,driftDIRight,defBasedDIRight,maxDispRight,...
  barPlasNodeRight]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
-supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
+supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.009);
 
 %% PUSHOVER IN NEGATIVE DIRECTION OF FORCES
 
@@ -142,7 +142,7 @@ seismicForces=-seismicForces;
     
 [lambdaLeft,pdriftDILeft,driftDILeft,defBasedDILeft,maxDispLeft,...
  barPlasNodeLeft]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
-supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
+supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.009);
 
 %% Final results
 SafetyFac=min([max(lambdaRight), max(lambdaLeft)])

@@ -91,8 +91,8 @@ type_elem=[1 "Col";
            5 "Col"];
        
 %% Loads       
-beams_LL=[1 100; % Uniformly distributed loads over the beams
-          2 100];
+beams_LL=[1 -60; % Uniformly distributed loads over the beams
+          2 -60];
 
 elemcols=[];
 elembeams=[];

@@ -132,14 +132,14 @@ type_elem=[1 "Col";
            19 "Col";
            20 "Col"];
        
-beams_LL=[1 100; % Uniformly distributed loads over the beams
-          2 100;
-          3 100;
-          4 100;
-          5 100;
-          6 100;
-          7 100;
-          8 100];
+beams_LL=[1 -80; % Uniformly distributed loads over the beams
+          2 -80;
+          3 -80;
+          4 -80;
+          5 -80;
+          6 -80;
+          7 -80;
+          8 -80];
 
 elem_cols=[];
 elem_beams=[];
@@ -224,7 +224,7 @@ hfloor=[400; 400; 400; 400];
 
 [lambdaRight,pdriftDIRight,driftDIRight,defBasedDIRight,maxDispRight,...
  barPlasNodeRight]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
-supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
+supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.05);
 
 %%% PUSHOVER IN NEGATIVE DIRECTION OF FORCES
 
@@ -232,7 +232,7 @@ seismicForces=-seismicForces;
     
 [lambdaLeft,pdriftDILeft,driftDILeft,defBasedDILeft,maxDispLeft,...
  barPlasNodeLeft]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
-supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.005);
+supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.05);
 
 nfloors=length(hfloor);
 
