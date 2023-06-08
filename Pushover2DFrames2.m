@@ -116,10 +116,10 @@ incLoad=1.0;
 iteration=0;
 while looping==0
     Kglobal=zeros(3*nnodes);
-    if iteration==0
-        fglobal=zeros(3*nnodes,1);
-        fglobal(dofForces)=seismicforces*incLoad;
-    end
+    
+    fglobal=zeros(3*nnodes,1);
+    fglobal(dofForces)=seismicforces*incLoad;
+    
     elmMat=zeros(6*nbars,6);
 
     Ex=zeros(nbars,2);
@@ -197,8 +197,6 @@ while looping==0
     plastified_bars=zeros(nbars,1); % to register which bars are plastified
                                     % in the current run (if any)
                                     
-    fglobal=zeros(3*nnodes,1); % create new force vector for the next run
-                               % (in case there is one next run)
     for i=1:nbars
 
         % Detect if any end of this bar (i) has been plastified
@@ -300,7 +298,6 @@ while looping==0
     if current_plas==0
         % Updating loads for the next iteration (in case there is one)
         incLoad=incLoad+dload;
-        fglobal(dofForces)=seismicforces*incLoad;
     else
         historyIncLoad=[historyIncLoad,incLoad];
         iter_collection=[iter_collection,iteration];
@@ -352,7 +349,6 @@ while looping==0
         end
         % Updating loads for the next iteration (in case there is one)
         incLoad=incLoad+dload;
-        fglobal(dofForces)=seismicforces*incLoad;
     end
     
     if iteration>1 % to verify is a next run is required
@@ -390,9 +386,10 @@ if sum(seismicforces)<0
         
         maxDisplacement(i)=max(dispHistFloorLeft(i,:));
         
-        delta_u=dispHistFloorLeft(i,nd);
+        % Deformation-Based Damage Index
+        du=0.04*Hfloor(i);
         defBasedDI(i)=(maxDisplacement(i)-dispHistFloorLeft(i,2))/...
-                      (delta_u-dispHistFloorLeft(i,2));
+                      (du-dispHistFloorLeft(i,2));
         
         floorText(i,:)=strcat('Floor ',num2str(i));
         figure(1)
@@ -440,11 +437,11 @@ else
         driftDI(i)=max(dispHistFloorRight(i,:))/(Hfloor(i))*100;
         
         maxDisplacement(i)=max(dispHistFloorRight(i,:));
-    
-        delta_u=dispHistFloorRight(i,nd);
         
+        % Deformation-Based Damage Index
+        du=0.04*Hfloor(i);
         defBasedDI(i)=(maxDisplacement(i)-dispHistFloorRight(i,2))/...
-                       (delta_u-dispHistFloorRight(i,2));
+                       (du-dispHistFloorRight(i,2));
         
         floorText(i,:)=strcat('Floor ',num2str(i));
         figure(3)
