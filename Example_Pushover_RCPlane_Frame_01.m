@@ -109,7 +109,7 @@ end
    
 % Lateral equivalent seismic forces from a modal analysis. The number of
 % forces must be equal to the number of floors
-seismicForces=[1000; % lower floor
+baseShearForces=[1000; % lower floor
                 1500]; % upper floor
             
 % Degrees of freedom over which each seismic force is applied (one for
@@ -134,15 +134,15 @@ nfloors=length(hfloor);
 
 [lambdaRight,pdriftDIRight,driftDIRight,defBasedDIRight,maxDispRight,...
  barPlasNodeRight]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
-supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.009);
+supports,bc,baseShearForces,hfloor,dofSeismicForces,0.01,0.009);
 
 %% PUSHOVER IN NEGATIVE DIRECTION OF FORCES
 
-seismicForces=-seismicForces;
+baseShearForces=-baseShearForces;
     
 [lambdaLeft,pdriftDILeft,driftDILeft,defBasedDILeft,maxDispLeft,...
  barPlasNodeLeft]=Pushover2DFrames2(qbary,A,Mp,E,I,coordxy,ni,nf,...
-supports,bc,seismicForces,hfloor,dofSeismicForces,0.01,0.009);
+supports,bc,baseShearForces,hfloor,dofSeismicForces,0.01,0.009);
 
 %% Final results
 SafetyFac=min([max(lambdaRight), max(lambdaLeft)])
